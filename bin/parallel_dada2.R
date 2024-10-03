@@ -15,8 +15,7 @@
 #   Requires Qiime2 to import the data in the right format
 #
 #   Containers:
-#     - parallel_dada2.sif as singularity image
-#     - parallel_dada2:latest:cd8a1dd5c5e1 as docker image
+#     - Dockerfile to build docker for parallel_dada2.R
 #
 #------------------------------------------------------------------------------------#
 
