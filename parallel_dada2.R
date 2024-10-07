@@ -58,17 +58,11 @@ option_list <- list (optparse::make_option(c("-m", "--metadata"),
                      optparse::make_option(c("--p-min-fold-parent-over-abundance"), 
                                            action = "store",
                                            default = 1,
-                                           help = "The minimum abundance of potential parents of a sequence being tested as chimeric,
-                                                   expressed as a fold-change versus the abundance of the sequence being tested. 
-                                                   Values should be greater than or equal to 1 (i.e. parents should be more abundant than
-                                                   the sequence being tested)."),
+                                           help = "Values should be greater than or equal to 1 (i.e. parents should be more abundant than the sequence being tested)."),
                      optparse::make_option(c("--p-chimera-method"), 
                                            action = "store",
                                            default = "consensus",
-                                           help = "Default is 'consensus'. Only has an effect if a sequence table is provided. 
-                                           If 'pooled': The samples in the sequence table are all pooled together for bimera identification (isBimeraDenovo).
-                                           If 'consensus': The samples in a sequence table are independently checked for bimeras, and a consensus decision on each sequence variant is made (isBimeraDenovoTable).
-                                           If 'per-sample': The samples in a sequence table are independently checked for bimeras, and sequence variants are removed (zeroed-out) from samples independently (isBimeraDenovo).")
+                                           help = "Default is 'consensus'. Only has an effect if a sequence table is provided. Options: 'pooled', 'consensus', 'per-sample' see dada2 docs")
 )
 
 # Collects arguments
