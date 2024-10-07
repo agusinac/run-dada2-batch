@@ -40,7 +40,35 @@ option_list <- list (optparse::make_option(c("-m", "--metadata"),
                      optparse::make_option(c("-s", "--seed"),
                                            action = "store",
                                            default = 100,
-                                           help = "sets seed number")
+                                           help = "sets seed number"),
+                     
+                     # Optional arguments for dada2 from command line
+                     optparse::make_option(c("--p-trunc-len"), 
+                                           action = "store",
+                                           default = 0,
+                                           help = "Default 0. Truncate reads after truncLen bases. Reads shorter than this are discarded."),
+                     optparse::make_option(c("--p-trunc-q"), 
+                                           action = "store",
+                                           default = 2,
+                                           help = "Default 2. Truncate reads at the first instance of a quality score less than or equal to truncQ"),
+                     optparse::make_option(c("--p-max-ee"), 
+                                           action = "store",
+                                           default = Inf,
+                                           help = "Default Inf (no EE filtering). After truncation, reads with higher than maxEE 'expected errors' will be discarded."),
+                     optparse::make_option(c("--p-min-fold-parent-over-abundance"), 
+                                           action = "store",
+                                           default = 1,
+                                           help = "The minimum abundance of potential parents of a sequence being tested as chimeric,
+                                                   expressed as a fold-change versus the abundance of the sequence being tested. 
+                                                   Values should be greater than or equal to 1 (i.e. parents should be more abundant than
+                                                   the sequence being tested)."),
+                     optparse::make_option(c("--p-chimera-method"), 
+                                           action = "store",
+                                           default = "consensus",
+                                           help = "Default is 'consensus'. Only has an effect if a sequence table is provided. 
+                                           If 'pooled': The samples in the sequence table are all pooled together for bimera identification (isBimeraDenovo).
+                                           If 'consensus': The samples in a sequence table are independently checked for bimeras, and a consensus decision on each sequence variant is made (isBimeraDenovoTable).
+                                           If 'per-sample': The samples in a sequence table are independently checked for bimeras, and sequence variants are removed (zeroed-out) from samples independently (isBimeraDenovo).")
 )
 
 # Collects arguments
@@ -85,6 +113,7 @@ doParallel::registerDoParallel(cl)
 
 # Shuffling rows
 mapping[base::sample(.N)]
+colnames(mapping) <- tolower(colnames(mapping))
 mapping_n <- nrow(mapping)
 
 # Automatically returns a single batch if mapping_n < batch_size
@@ -96,10 +125,9 @@ filtpath <- file.path("filtered")
 #-----------------------------------------#
 # Runs denoise in batches                 #
 #-----------------------------------------#
-
 for (i in 1:length(batches)) {
   # Assigning sample names and fastq path from mapping
-  sample_names <- batches[[i]][["SAMPLE-ID"]]
+  sample_names <- batches[[i]][["sample-id"]]
   sample_fastq <- batches[[i]][["absolute-filepath"]]
   
   # Setting filtered paths
@@ -107,14 +135,13 @@ for (i in 1:length(batches)) {
   
   # Filtering script
   out <- dada2::filterAndTrim(sample_fastq, filtFs,
-                              truncLen = 0,
-                              maxEE = 6,
-                              truncQ = 2,
+                              truncLen = opt$`p-trunc-len`,
+                              maxEE = opt$`p-max-ee`,
+                              truncQ = opt$`p-trunc-q`,
                               rm.phix = TRUE,
                               compress = TRUE,
                               verbose = TRUE,
-                              multithread = cpus_n,
-                              trimLeft = 0)
+                              multithread = cpus_n)
   
   # Dereplication
   derepFs <- dada2::derepFastq(filtFs, verbose = TRUE)
@@ -172,8 +199,8 @@ if (length(seqtabs.filenames) > 1) {
 
 # Remove chimeras
 seqtab.nochim <- dada2::removeBimeraDenovo(seqtabs.merged,
-                                           method = "consensus", 
-                                           minFoldParentOverAbundance = 2, 
+                                           method = opt$`p-chimera-method`, 
+                                           minFoldParentOverAbundance = opt$`p-min-fold-parent-over-abundance`, 
                                            multithread = cpus_n, 
                                            verbose = TRUE)
 
