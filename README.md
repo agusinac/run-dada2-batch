@@ -7,14 +7,19 @@ This is done by splitting the data into batches and using foreach R module to pr
 The parallel_dada2 works only on single-end reads, since in our organization we merge the paired-end reads with PEAR. We find an enrichment of reads with PEAR versus dada2 denoise paired-end in Qiime2. 
 
 # Mapping file format example (Required):
-````
-SAMPLE-ID       absolute-filepath       DESCRIPTION
+```
+sample-id       absolute-filepath
 S103            path/to/S103.fastq.gz
 S104            path/to/S104.fastq.gz
 ```
 
-# Running parallel_dada2.R from command line
+# Example: Running parallel_dada2.R from command line
 ```
-Rscript --metadata mapping.tsv --batch_n 500 --cpus 8 > dada_report.txt
+Rscript --metadata mapping.tsv --batch_n 500 --cpus 8 \
+        --p-trunc-q 2 \
+        --p-max-ee 6 \
+        --p-min-fold-parent-over-abundance 2 \
+        --p-chimera-method consensus \
+        > dada_report.txt
 
 ```
