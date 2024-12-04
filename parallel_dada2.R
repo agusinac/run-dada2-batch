@@ -41,6 +41,10 @@ option_list <- list (optparse::make_option(c("-m", "--metadata"),
                                            action = "store",
                                            default = 100,
                                            help = "sets seed number"),
+                     optparse::make_option(c("-p", "--parallel"),
+                                           action = "store",
+                                           default = FALSE,
+                                           help = "parallel TRUE will allocate sample per core, FALSE will split sample among cores"),
                      
                      # Optional arguments for dada2 from command line
                      optparse::make_option(c("--p-trunc-len"), 
@@ -76,7 +80,7 @@ opt <- arguments$options
 #-----------------------------------------#
 
 if (!is.null(opt$metadata)) {
-  mapping <- data.table::fread("dada2_test/mapping.txt")
+  mapping <- data.table::fread(opt$metadata)
 } else stop("Please provide a tab-separated metadata file!")
 
 # Fetch user-input or default parameters
@@ -97,9 +101,11 @@ getN <- function(x) sum(dada2::getUniques(x))
 # Setting up seed
 set.seed(seed = seed_n)
 
-# Setting up parallel backend
-cl <- parallel::makeCluster(cpus_n)
-doParallel::registerDoParallel(cl)
+if (opt$parallel) {
+  # Setting up parallel backend
+  cl <- parallel::makeCluster(cpus_n)
+  doParallel::registerDoParallel(cl)
+}
 
 #-----------------------------------------#
 # Preparation of batches                  #
@@ -145,15 +151,29 @@ for (i in 1:length(batches)) {
   err <- dada2::learnErrors(derepFs, multithread = cpus_n)
   # Save err plot
   ggplot2::ggsave(filename = "errProfile.png",
-                  plot = dada2::plotErrors(err, nominalQ=TRUE))
+                  plot = dada2::plotErrors(err, nominalQ=TRUE),
+                  width = 10, 
+                  height = 10,
+                  dpi = 400)
   
   # Parallel Denoising
-  dds <- foreach::foreach(sam = sample_names, .combine = "c", .packages = "dada2") %dopar% {
-    cat("Processing:", sam, "\n")
-    list(sam = dada2::dada(derepFs[[ sam ]],
-                           err = err,
-                           multithread = FALSE))
+  if (opt$parallel) {
+    dds <- foreach::foreach(sam = sample_names, .combine = "c", .packages = "dada2") %dopar% {
+      cat("Processing:", sam, "\n")
+      list(sam = dada2::dada(derepFs[[ sam ]],
+                             err = err,
+                             multithread = FALSE))
+    }
+  } else {
+    dds <- vector("list", length(sample_names))
+    names(dds) <- sample_names
+    for (sam in sample_names) {
+      dds[[sam]] <- dada2::dada(derepFs[[ sam ]],
+                                err = err,
+                                multithread = cpus_n)
+    }
   }
+  
   # Create sequence table
   dds <- dds[!sapply(dds, is.null)]
   seqtab <- dada2::makeSequenceTable(dds)
@@ -168,8 +188,10 @@ for (i in 1:length(batches)) {
   saveRDS(seqtab, file = paste0("rep-seqs_batch_", i, ".rds"))
   saveRDS(track, file = paste0("denoising-stats_batch_", i, ".rds"))
 }
-# Stops cluster
-parallel::stopCluster(cl)
+if (opt$parallel) {
+  # Stops cluster
+  parallel::stopCluster(cl)
+}
 
 #-------------------------------------------------#
 # Collects batches and performs chimera removal   #
