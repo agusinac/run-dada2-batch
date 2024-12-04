@@ -76,7 +76,7 @@ opt <- arguments$options
 #-----------------------------------------#
 
 if (!is.null(opt$metadata)) {
-  mapping <- data.table::fread(opt$metadata)
+  mapping <- data.table::fread("dada2_test/mapping.txt")
 } else stop("Please provide a tab-separated metadata file!")
 
 # Fetch user-input or default parameters
@@ -123,7 +123,7 @@ for (i in 1:length(batches)) {
   # Assigning sample names and fastq path from mapping
   sample_names <- batches[[i]][["sample-id"]]
   sample_fastq <- batches[[i]][["absolute-filepath"]]
-  
+
   # Setting filtered paths
   filtFs <- file.path(filtpath, basename(sample_fastq))
   
@@ -143,6 +143,9 @@ for (i in 1:length(batches)) {
   
   # Learn error rates
   err <- dada2::learnErrors(derepFs, multithread = cpus_n)
+  # Save err plot
+  ggplot2::ggsave(filename = "errProfile.png",
+                  plot = dada2::plotErrors(err, nominalQ=TRUE))
   
   # Parallel Denoising
   dds <- foreach::foreach(sam = sample_names, .combine = "c", .packages = "dada2") %dopar% {
