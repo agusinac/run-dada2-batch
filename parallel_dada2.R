@@ -21,10 +21,13 @@
 #
 #------------------------------------------------------------------------------------#
 
+Rscript <- sub("--file=", "", commandArgs()[4])
+current_path <- sub(basename(Rscript), "", normalizePath(Rscript))
+
 # required libraries & Loess functions
 library("foreach")
 library("dplyr")
-source("R/error_methods.R")
+source(paste0(current_path, "R/error_methods.R"))
 
 #-----------------------------------------#
 # Parsing from command line               #
