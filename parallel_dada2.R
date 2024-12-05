@@ -1,16 +1,18 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 01-10-2024
+#   Created by Alem Gusinac, last modified at 05-12-2024
 # 
 #   Optimizes DADA2 in two ways:
 #       1. Splits mapping file in batches, can be specified via --batch_n
 #       2. Disables multithreading at denoise but allocates each sample on a separate CPU
+#         2a. Option to change to classic way is still possible by -p, --parallel flag
 #       
 #   Required INPUT: mapping file
 #
 #   OUTPUT:
 #     1. denoising_stats as RDS file
 #     2. seq_tab as RDS file
+#     3. ErrProfile
 #
 #   Requires Qiime2 to import the data in the right format
 #
@@ -19,9 +21,10 @@
 #
 #------------------------------------------------------------------------------------#
 
-# required libraries
+# required libraries & Loess functions
 library("foreach")
 library("dplyr")
+source("R/error_methods.R")
 
 #-----------------------------------------#
 # Parsing from command line               #
@@ -45,6 +48,10 @@ option_list <- list (optparse::make_option(c("-m", "--metadata"),
                                            action = "store",
                                            default = FALSE,
                                            help = "parallel TRUE will allocate sample per core, FALSE will split sample among cores"),
+                     optparse::make_option(c("--novaseq"),
+                                           action = "store",
+                                           default = FALSE,
+                                           help = "Specify if sequence data originates from novaseq"),
                      
                      # Optional arguments for dada2 from command line
                      optparse::make_option(c("--p-trunc-len"), 
@@ -148,9 +155,19 @@ for (i in 1:length(batches)) {
   names(derepFs) <- sample_names
   
   # Learn error rates
-  err <- dada2::learnErrors(derepFs, multithread = cpus_n)
+  if (opt$novaseq) {
+    # I choose model 4 based on pre-liminary pilot tests of deeply sequenced NovaSeq data (800k - 3 million reads)
+    err <- dada2::learnErrors(derepFs, 
+                              multithread = cpus_n,
+                              errorEstimationFunction = loessErrfun_mod4)
+  } else {
+    err <- dada2::learnErrors(derepFs, 
+                              multithread = cpus_n)
+  }
+  
+  
   # Save err plot
-  ggplot2::ggsave(filename = "errProfile.png",
+  ggplot2::ggsave(filename = "errProfil.png",
                   plot = dada2::plotErrors(err, nominalQ=TRUE),
                   width = 10, 
                   height = 10,
@@ -173,17 +190,17 @@ for (i in 1:length(batches)) {
                                 multithread = cpus_n)
     }
   }
-  
+
   # Create sequence table
   dds <- dds[!sapply(dds, is.null)]
   seqtab <- dada2::makeSequenceTable(dds)
   rownames(seqtab) <- sample_names
-  
+
   # stats of reads
   track <- cbind(out, sapply(dds, getN))
   colnames(track) <- c("input", "filtered", "denoised")
   rownames(track) <- sample_names
-  
+
   # Save outputs
   saveRDS(seqtab, file = paste0("rep-seqs_batch_", i, ".rds"))
   saveRDS(track, file = paste0("denoising-stats_batch_", i, ".rds"))
@@ -198,8 +215,8 @@ if (opt$parallel) {
 #-------------------------------------------------#
 denoising_stats <- list.files(path = getwd(),
                               pattern = "denoising-stats_",
-                              full.names = TRUE) %>% 
-  purrr::map(~ data.table::data.table(readRDS(.x))) %>% 
+                              full.names = TRUE) %>%
+  purrr::map(~ data.table::data.table(readRDS(.x))) %>%
   bind_rows()
 
 # Read in seq batches
@@ -214,13 +231,13 @@ if (length(seqtabs.filenames) > 1) {
 } else {
   seqtabs.merged <- readRDS(seqtabs.filenames)
 }
- 
+
 
 # Remove chimeras
 seqtab.nochim <- dada2::removeBimeraDenovo(seqtabs.merged,
-                                           method = opt$`p-chimera-method`, 
-                                           minFoldParentOverAbundance = opt$`p-min-fold-parent-over-abundance`, 
-                                           multithread = cpus_n, 
+                                           method = opt$`p-chimera-method`,
+                                           minFoldParentOverAbundance = opt$`p-min-fold-parent-over-abundance`,
+                                           multithread = cpus_n,
                                            verbose = TRUE)
 
 #-----------------------------------------#

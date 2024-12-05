@@ -1,6 +1,6 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 26-09-2024
+#   Created by Alem Gusinac, last modified at 05-12-2024
 # 
 #   This Dockerfile creates a container suitable for r-base:latest and Qiime2
 #   It builds on top of a slim ubuntu (70MB) base
@@ -73,6 +73,7 @@ RUN Rscript install2.r --error --skipinstalled \
     BiocManager \
     optparse \
     remotes \
+    ggplot2 \
     data.table \
     foreach \
     parallel \
@@ -84,8 +85,6 @@ RUN Rscript install2.r --error --skipinstalled \
 # R dependencies from BiocManager
 RUN Rscript installBioc.r --error --skipinstalled \
     dada2 \
-    biomformat \
-    phyloseq \
     && rm -rf /tmp/downloaded_packages
 
 #------------------------------------------------------------------------------------#
