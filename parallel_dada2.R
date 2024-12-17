@@ -170,7 +170,7 @@ for (i in 1:length(batches)) {
   
   
   # Save err plot
-  ggplot2::ggsave(filename = "errProfil.png",
+  ggplot2::ggsave(filename = paste0("errProfile_", i, ".png"),
                   plot = dada2::plotErrors(err, nominalQ=TRUE),
                   width = 10, 
                   height = 10,
@@ -234,7 +234,6 @@ if (length(seqtabs.filenames) > 1) {
 } else {
   seqtabs.merged <- readRDS(seqtabs.filenames)
 }
-
 
 # Remove chimeras
 seqtab.nochim <- dada2::removeBimeraDenovo(seqtabs.merged,
