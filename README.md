@@ -1,4 +1,5 @@
 [![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15733320.svg)](https://doi.org/10.5281/zenodo.15733320)
 
 # Inspiration
 Dada2 gets very slow when dealing with large sample size and read depth.
