@@ -1,3 +1,5 @@
+[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
+
 # Inspiration
 Dada2 gets very slow when dealing with large sample size and read depth.
 The parallel_dada2.R tries to improve the denoise step when processing large sample size with large read depth on an HPC environment.
