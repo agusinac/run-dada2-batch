@@ -1,4 +1,4 @@
-[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
+[![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://hub.docker.com/r/agusinac/run-dada2-batch)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15733320.svg)](https://doi.org/10.5281/zenodo.15733320)
 
 # Inspiration
