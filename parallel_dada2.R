@@ -248,7 +248,7 @@ seqtab.nochim <- dada2::removeBimeraDenovo(seqtabs.merged,
 
 track <- cbind(denoising_stats, rowSums(seqtab.nochim))
 colnames(track) <- c("input", "filtered", "denoised", "nonchim")
-rownames(track) <- rownames(seqtab.nochim)
+track <- cbind(sample = rownames(seqtab.nochim), track)
 
 #-----------------------------------------#
 # OUTPUTS FILES                           #
@@ -257,7 +257,7 @@ rownames(track) <- rownames(seqtab.nochim)
 dada2::uniquesToFasta(seqtab.nochim, fout="rep-seqs.fna", ids=colnames(seqtab.nochim))
 
 # Outputs track
-utils::write.table(track, file = paste0("denoising-stats.tsv"), sep = "\t")
+utils::write.table(track, file = paste0("denoising-stats.tsv"), sep = "\t", row.names = FALSE)
 
 # Creating OTU table
 seqtab.nochim <- t(seqtab.nochim) # QIIME has OTUs as rows
