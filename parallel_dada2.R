@@ -1,12 +1,12 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 05-12-2024
-# 
+#   Created by Alem Gusinac, last modified at 09-09-2025
+#
 #   Optimizes DADA2 in two ways:
 #       1. Splits mapping file in batches, can be specified via --batch_n
 #       2. Disables multithreading at denoise but allocates each sample on a separate CPU
 #         2a. Option to change to classic way is still possible by -p, --parallel flag
-#       
+#
 #   Required INPUT: mapping file
 #
 #   OUTPUT:
@@ -32,7 +32,7 @@ source(paste0(current_path, "R/error_methods.R"))
 #-----------------------------------------#
 # Parsing from command line               #
 #-----------------------------------------#
-option_list <- list (optparse::make_option(c("-m", "--metadata"), 
+option_list <- list (optparse::make_option(c("-m", "--metadata"),
                                            action = "store",
                                            help="tab seperated file"),
                      optparse::make_option(c("-n", "--batch_n"),
@@ -55,28 +55,32 @@ option_list <- list (optparse::make_option(c("-m", "--metadata"),
                                            action = "store_true",
                                            default = FALSE,
                                            help = "Specify if sequence data originates from novaseq"),
-                     
+
                      # Optional arguments for dada2 from command line
-                     optparse::make_option(c("--p-trunc-len"), 
+                     optparse::make_option(c("--p-trunc-len"),
                                            action = "store",
                                            default = 0,
                                            help = "Default 0. Truncate reads after truncLen bases. Reads shorter than this are discarded."),
-                     optparse::make_option(c("--p-trunc-q"), 
+                     optparse::make_option(c("--p-trunc-q"),
                                            action = "store",
                                            default = 2,
                                            help = "Default 2. Truncate reads at the first instance of a quality score less than or equal to truncQ"),
-                     optparse::make_option(c("--p-max-ee"), 
+                     optparse::make_option(c("--p-max-ee"),
                                            action = "store",
                                            default = Inf,
                                            help = "Default Inf (no EE filtering). After truncation, reads with higher than maxEE 'expected errors' will be discarded."),
-                     optparse::make_option(c("--p-min-fold-parent-over-abundance"), 
+                     optparse::make_option(c("--p-min-fold-parent-over-abundance"),
                                            action = "store",
                                            default = 1,
                                            help = "Values should be greater than or equal to 1 (i.e. parents should be more abundant than the sequence being tested)."),
-                     optparse::make_option(c("--p-chimera-method"), 
+                     optparse::make_option(c("--p-chimera-method"),
                                            action = "store",
                                            default = "consensus",
-                                           help = "Default is 'consensus'. Only has an effect if a sequence table is provided. Options: 'pooled', 'consensus', 'per-sample' see dada2 docs")
+                                           help = "Default is 'consensus'. Only has an effect if a sequence table is provided. Options: 'pooled', 'consensus', 'per-sample' see dada2 docs"),
+                     optparse::make_option(c("--skip-denoise"),
+                                           action = "store_true",
+                                           default = FALSE,
+                                           help = "You would never skip denoise, unless the input data is not compatible to dada2. For example you have nanopore long-reads (Default: FALSE)")
 )
 
 # Collects arguments
@@ -90,7 +94,7 @@ opt <- arguments$options
 #-----------------------------------------#
 
 if (!is.null(opt$metadata)) {
-  mapping <- data.table::fread(opt$metadata)
+  mapping <- data.table::fread(opt$metadata, header = TRUE)
 } else stop("Please provide a tab-separated metadata file!")
 
 # Fetch user-input or default parameters
@@ -103,6 +107,17 @@ cpus_n <- opt$cpus
 #-----------------------------------------#
 # Counts N of reads
 getN <- function(x) sum(dada2::getUniques(x))
+
+add_percentage_columns <- function(df) {
+  denom_col <- df[[1]]
+  for (col in names(df)) {
+    if (is.numeric(df[[col]])) {
+      pct_col_name <- paste0(col, " [%]")
+      df[[pct_col_name]] <- (df[[col]] / denom_col) * 100
+    }
+  }
+  return(df)
+}
 
 #-----------------------------------------#
 # Setting up parallel and seed            #
@@ -142,67 +157,105 @@ for (i in 1:length(batches)) {
 
   # Setting filtered paths
   filtFs <- file.path(filtpath, basename(sample_fastq))
-  
+
   # Filtering script
-  out <- dada2::filterAndTrim(sample_fastq, filtFs,
-                              truncLen = opt$`p-trunc-len`,
-                              maxEE = opt$`p-max-ee`,
-                              truncQ = opt$`p-trunc-q`,
-                              rm.phix = TRUE,
-                              compress = TRUE,
-                              verbose = TRUE,
-                              multithread = cpus_n)
-  
+  out <- dada2::filterAndTrim(
+    fwd = sample_fastq,
+    filt = filtFs,
+    truncLen = opt$`p-trunc-len`,
+    maxEE = opt$`p-max-ee`,
+    truncQ = opt$`p-trunc-q`,
+    rm.phix = TRUE,
+    compress = TRUE,
+    verbose = TRUE,
+    multithread = cpus_n
+    )
+
   # Dereplication
   derepFs <- dada2::derepFastq(filtFs, verbose = TRUE)
   names(derepFs) <- sample_names
-  
-  # Learn error rates
-  if (opt$novaseq) {
-    # I choose model 4 based on pre-liminary pilot tests of deeply sequenced NovaSeq data (800k - 3 million reads)
-    err <- dada2::learnErrors(derepFs, 
-                              multithread = cpus_n,
-                              errorEstimationFunction = loessErrfun_mod4)
-  } else {
-    err <- dada2::learnErrors(derepFs, 
-                              multithread = cpus_n)
-  }
-  
-  
-  # Save err plot
-  ggplot2::ggsave(filename = paste0("errProfile_", i, ".png"),
-                  plot = dada2::plotErrors(err, nominalQ=TRUE),
-                  width = 10, 
-                  height = 10,
-                  dpi = 400)
-  
-  # Parallel Denoising
-  if (opt$parallel) {
-    dds <- foreach::foreach(sam = sample_names, .combine = "c", .packages = "dada2") %dopar% {
-      cat("Processing:", sam, "\n")
-      list(sam = dada2::dada(derepFs[[ sam ]],
-                             err = err,
-                             multithread = FALSE))
-    }
-  } else {
-    dds <- vector("list", length(sample_names))
-    names(dds) <- sample_names
-    for (sam in sample_names) {
-      dds[[sam]] <- dada2::dada(derepFs[[ sam ]],
-                                err = err,
-                                multithread = cpus_n)
-    }
-  }
 
-  # Create sequence table
-  dds <- dds[!sapply(dds, is.null)]
-  seqtab <- dada2::makeSequenceTable(dds)
-  rownames(seqtab) <- sample_names
+  if (!opt$`skip-denoise`) {
+    # Learn error rates
+    if (opt$novaseq) {
+      # I choose model 4 based on pre-liminary pilot tests of deeply sequenced NovaSeq data (800k - 3 million reads)
+      err <- dada2::learnErrors(
+        fls = derepFs,
+        multithread = cpus_n,
+        errorEstimationFunction = loessErrfun_mod4
+        )
+    } else {
+      err <- dada2::learnErrors(
+        fls = derepFs,
+        multithread = cpus_n
+        )
+    }
 
-  # stats of reads
-  track <- cbind(out, sapply(dds, getN))
-  colnames(track) <- c("input", "filtered", "denoised")
-  rownames(track) <- sample_names
+
+    # Save err plot
+    ggplot2::ggsave(filename = paste0("errProfile_", i, ".png"),
+                    plot = dada2::plotErrors(err, nominalQ=TRUE),
+                    width = 10,
+                    height = 10,
+                    dpi = 400)
+
+    # Parallel Denoising
+    if (opt$parallel) {
+      dds <- foreach::foreach(sam = sample_names, .combine = "c", .packages = "dada2") %dopar% {
+        cat("Processing:", sam, "\n")
+        list(sam = dada2::dada(
+          derep = derepFs[[ sam ]],
+          err = err,
+          multithread = FALSE
+          )
+        )
+      }
+    } else {
+      dds <- vector("list", length(sample_names))
+      names(dds) <- sample_names
+      for (sam in sample_names) {
+        dds[[sam]] <- dada2::dada(
+          derep = derepFs[[ sam ]],
+          err = err,
+          multithread = cpus_n
+          )
+      }
+    }
+
+    # Create sequence table
+    dds <- dds[!sapply(dds, is.null)]
+    seqtab <- dada2::makeSequenceTable(dds)
+    rownames(seqtab) <- sample_names
+
+    # stats of reads
+    track <- cbind(out, sapply(dds, getN))
+    colnames(track) <- c("input", "filtered", "denoised")
+    rownames(track) <- sample_names
+
+  } else {
+
+    ## Creating seqtab from dereplicated files
+    features <- unique(unlist(lapply(derepFs, function(x) names(x$uniques))))
+
+    ## Build otu table
+    otu_tab <- sapply(derepFs, function(x) {
+      counts <- x$uniques
+      as.integer(counts[features])
+    })
+    otu_tab[is.na(otu_tab)] <- 0
+    otu_tab.t <- t(otu_tab)
+    seqtab <- matrix(
+      as.integer(otu_tab.t),
+      nrow=nrow(otu_tab.t),
+      ncol=ncol(otu_tab.t),
+      dimnames = list(names(derepFs), features)
+      )
+
+    # stats of reads
+    track <- out
+    colnames(track) <- c("input", "filtered")
+    rownames(track) <- sample_names
+  }
 
   # Save outputs
   saveRDS(seqtab, file = paste0("rep-seqs_batch_", i, ".rds"))
@@ -235,20 +288,34 @@ if (length(seqtabs.filenames) > 1) {
   seqtabs.merged <- readRDS(seqtabs.filenames)
 }
 
-# Remove chimeras
-seqtab.nochim <- dada2::removeBimeraDenovo(seqtabs.merged,
-                                           method = opt$`p-chimera-method`,
-                                           minFoldParentOverAbundance = opt$`p-min-fold-parent-over-abundance`,
-                                           multithread = cpus_n,
-                                           verbose = TRUE)
+if (!opt$`skip-denoise`) {
+  # Remove chimeras
+  seqtab.nochim <- dada2::removeBimeraDenovo(
+    unqs = seqtabs.merged,
+    method = opt$`p-chimera-method`,
+    minFoldParentOverAbundance = opt$`p-min-fold-parent-over-abundance`,
+    multithread = cpus_n,
+    verbose = TRUE
+  )
+} else {
+  seqtab.nochim <- seqtabs.merged
+}
 
 #-----------------------------------------#
 # Creates dada_report                     #
 #-----------------------------------------#
 
-track <- cbind(denoising_stats, rowSums(seqtab.nochim))
-colnames(track) <- c("input", "filtered", "denoised", "nonchim")
+## Adding percentage difference
+if (!opt$`skip-denoise`) {
+  track <- cbind(denoising_stats, rowSums(seqtab.nochim))
+  colnames(track) <- c("input", "filtered", "denoised", "nonchim")
+} else {
+  track <- denoising_stats
+}
+
+track <- add_percentage_columns(track)
 track <- cbind(sample = rownames(seqtab.nochim), track)
+
 
 #-----------------------------------------#
 # OUTPUTS FILES                           #
@@ -257,7 +324,12 @@ track <- cbind(sample = rownames(seqtab.nochim), track)
 dada2::uniquesToFasta(seqtab.nochim, fout="rep-seqs.fna", ids=colnames(seqtab.nochim))
 
 # Outputs track
-utils::write.table(track, file = paste0("denoising-stats.tsv"), sep = "\t", row.names = FALSE)
+data.table::fwrite(
+  x = track,
+  file = "denoising-stats.tsv",
+  sep = "\t",
+  row.names = FALSE
+  )
 
 # Creating OTU table
 seqtab.nochim <- t(seqtab.nochim) # QIIME has OTUs as rows
