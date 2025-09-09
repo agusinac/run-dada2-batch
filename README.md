@@ -28,9 +28,9 @@ Rscript parallel_dada2.R
 
 ## Docker
 ```bash
-docker pull agusinac/run-dada2-batch:0.0.1
+docker pull agusinac/run-dada2-batch:0.0.2
 
-docker run --rm -v $(pwd):/scripts agusinac/run-dada2-batch:0.0.1 Rscript scripts/parallel_dada2.R \
+docker run --rm -v $(pwd):/scripts agusinac/run-dada2-batch:0.0.2 Rscript scripts/parallel_dada2.R \
                                                                     --metadata mapping.tsv 
                                                                     --batch_n 500 
                                                                     --cpus 8 \
