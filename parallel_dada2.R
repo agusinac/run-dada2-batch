@@ -321,7 +321,8 @@ track <- cbind(sample = rownames(seqtab.nochim), track)
 # OUTPUTS FILES                           #
 #-----------------------------------------#
 # Creating unique fasta file
-dada2::uniquesToFasta(seqtab.nochim, fout="rep-seqs.fna", ids=colnames(seqtab.nochim))
+asv_hash <- unlist(lapply(colnames(seqtab.nochim), function(x) rlang::hash(x)))
+dada2::uniquesToFasta(seqtab.nochim, fout="rep-seqs.fna", ids = asv_hash)
 
 # Outputs track
 data.table::fwrite(
@@ -334,6 +335,7 @@ data.table::fwrite(
 # Creating OTU table
 seqtab.nochim <- t(seqtab.nochim) # QIIME has OTUs as rows
 col.names <- colnames(seqtab.nochim)
+rownames(seqtab.nochim) <- asv_hash
 col.names[[1]] <- paste0("#OTU ID\t", col.names[[1]])
 utils::write.table(seqtab.nochim, "seq-tab.tsv", sep="\t",
                    row.names=TRUE, col.names=col.names, quote=FALSE)
