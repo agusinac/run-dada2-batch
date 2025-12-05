@@ -31,15 +31,20 @@ Rscript parallel_dada2.R
 
 ## Docker
 ```bash
-docker pull agusinac/run-dada2-batch:0.0.2
+docker pull agusinac/run-dada2-batch:latest
 
-docker run --rm -v $(pwd):/scripts agusinac/run-dada2-batch:0.0.2 Rscript scripts/parallel_dada2.R \
-                                                                    --metadata mapping.tsv 
-                                                                    --batch_n 500 
-                                                                    --cpus 8 \
-                                                                    --p-trunc-q 2 \
-                                                                    --p-max-ee 6 \
-                                                                    --p-min-fold-parent-over-abundance 2 \
-                                                                    --p-chimera-method consensus \
-                                                                    > dada_report.txt
+docker run -it --rm -v \
+        "$(pwd)":/data \             # Mount the data in a temporary directory
+        -w /data \                   # set working directory
+        -u $(id -u):$(id -g) \       # non-root user
+        agusinac/run-dada2-batch:latest \
+        parallel_dada2 \
+        --metadata mapping.tsv 
+        --batch_n 500 
+        --cpus 8 \
+        --p-trunc-q 2 \
+        --p-max-ee 6 \
+        --p-min-fold-parent-over-abundance 2 \
+        --p-chimera-method consensus \
+        > dada_report.txt
 ```

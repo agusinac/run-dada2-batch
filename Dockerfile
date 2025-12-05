@@ -1,17 +1,7 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 05-12-2024
+#   Created by Alem Gusinac, last modified at 04-12-2025
 # 
-#   This Dockerfile creates a container suitable for r-base:latest and Qiime2
-#   It builds on top of a slim ubuntu (70MB) base
-# 
-#   Current available setups by section:
-#       1. qiime2
-#       2. R: dada2
-# 
-#   Additional setups can be included after the latest section
-#   It is important to include lib/pkgs for your setup in the first section
-#
 #------------------------------------------------------------------------------------#
 
 FROM ubuntu:20.04
@@ -28,6 +18,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     wget curl \
+    rename \
+    imagemagick \
     libtool \
     libcurl4-openssl-dev \ 
     libxml2-dev \
@@ -64,6 +56,7 @@ RUN apt-get update && apt-get install -y r-base
 COPY install2.r .
 COPY installBioc.r .
 COPY installGithub.r .
+COPY R .
 
 # Required package for install2.r
 RUN R -e "install.packages('docopt', dependencies=TRUE)"
@@ -87,9 +80,18 @@ RUN Rscript installBioc.r --error --skipinstalled \
     dada2 \
     && rm -rf /tmp/downloaded_packages
 
+# Make autoFlow.R directly callable from /usr/local/bin
+COPY parallel_dada2.R /usr/local/bin/parallel_dada2
+RUN chmod +x /usr/local/bin/parallel_dada2
+
 #------------------------------------------------------------------------------------#
-# Final steps
+# 3. non-root user
 #------------------------------------------------------------------------------------#
 
-RUN useradd -ms /bin/bash ${USER}
-USER ${USER}
+ARG USERNAME=docker
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+# Create the user
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME
