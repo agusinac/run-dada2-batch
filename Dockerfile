@@ -1,6 +1,6 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 04-12-2025
+#   Created by Alem Gusinac, last modified at 05-12-2025
 # 
 #------------------------------------------------------------------------------------#
 
@@ -55,8 +55,6 @@ RUN apt-get update && apt-get install -y r-base
 # Copy requirements
 COPY install2.r .
 COPY installBioc.r .
-COPY installGithub.r .
-COPY R .
 
 # Required package for install2.r
 RUN R -e "install.packages('docopt', dependencies=TRUE)"
@@ -80,9 +78,11 @@ RUN Rscript installBioc.r --error --skipinstalled \
     dada2 \
     && rm -rf /tmp/downloaded_packages
 
-# Make autoFlow.R directly callable from /usr/local/bin
-COPY parallel_dada2.R /usr/local/bin/parallel_dada2
-RUN chmod +x /usr/local/bin/parallel_dada2
+# Make parallel_dada2 callable from /usr/local/bin
+COPY R /usr/local/bin/
+COPY parallel_dada2.R /usr/local/bin/
+RUN echo 'alias parallel_dada2="Rscript /usr/local/bin/parallel_dada2.R"' >> /etc/bash.bashrc \
+    && chmod +x /usr/local/bin/parallel_dada2.R
 
 #------------------------------------------------------------------------------------#
 # 3. non-root user

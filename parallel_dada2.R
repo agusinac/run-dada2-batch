@@ -1,6 +1,6 @@
 #------------------------------------------------------------------------------------#
 #
-#   Created by Alem Gusinac, last modified at 09-09-2025
+#   Created by Alem Gusinac, last modified at 05-12-2025
 #
 #   Optimizes DADA2 in two ways:
 #       1. Splits mapping file in batches, can be specified via --batch_n
@@ -27,7 +27,15 @@ current_path <- sub(basename(Rscript), "", normalizePath(Rscript))
 # required libraries & Loess functions
 library("foreach")
 library("dplyr")
-source(paste0(current_path, "R/error_methods.R"))
+
+# Try both paths, docker or git 
+paths_to_try <- c(paste0(current_path, "R/error_methods.R"), "error_methods.R")
+for (path in paths_to_try) {
+  if (file.exists(path)) {
+    source(path)
+    break
+  }
+}
 
 #-----------------------------------------#
 # Parsing from command line               #
