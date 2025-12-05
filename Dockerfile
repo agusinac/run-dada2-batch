@@ -81,7 +81,9 @@ RUN Rscript installBioc.r --error --skipinstalled \
 # Make parallel_dada2 callable from /usr/local/bin
 COPY R /usr/local/bin/
 COPY parallel_dada2.R /usr/local/bin/
-RUN echo 'alias parallel_dada2="Rscript /usr/local/bin/parallel_dada2.R"' >> /etc/bash.bashrc \
+RUN echo '#!/bin/bash' > /usr/local/bin/parallel_dada2 \
+    && echo 'exec Rscript /usr/local/bin/parallel_dada2.R "$@"' >> /usr/local/bin/parallel_dada2 \
+    && chmod +x /usr/local/bin/parallel_dada2 \
     && chmod +x /usr/local/bin/parallel_dada2.R
 
 #------------------------------------------------------------------------------------#
