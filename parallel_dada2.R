@@ -180,7 +180,13 @@ for (i in 1:length(batches)) {
     )
 
   # Dereplication
-  derepFs <- dada2::derepFastq(filtFs, verbose = TRUE)
+  derep <- dada2::derepFastq(filtFs, verbose = TRUE)
+  if (length(sample_names) == 1) {
+    derepFs <- list(derep)
+  } else {
+    derepFs <- derep
+  }
+  rm(derep)
   names(derepFs) <- sample_names
 
   if (!opt$`skip-denoise`) {
